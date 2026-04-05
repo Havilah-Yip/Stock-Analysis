@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GlobalPulse — Financial Intelligence Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0a0b; --bg2: #111114; --bg3: #18181c; --bg4: #1e1e24;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+    --text: #e8e8ea; --text2: #8a8a95; --text3: #555560;
+    --gold: #f0a500; --gold2: #cc8800; --green: #22c77a; --red: #e84040;
+    --blue: #4a9eff; --purple: #9b7aff;
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: 'SF Mono','Fira Code','Courier New',monospace; font-size: 13px; height: 100%; overflow: hidden; }
+  .topbar { display:flex; align-items:center; height:36px; background:var(--bg2); border-bottom:1px solid var(--border); padding:0 12px; overflow:hidden; }
+  .brand { color:var(--gold); font-weight:700; font-size:13px; letter-spacing:2px; margin-right:16px; white-space:nowrap; }
+  .ticker-scroll { display:flex; gap:20px; overflow:hidden; flex:1; mask-image:linear-gradient(to right,transparent,black 5%,black 95%,transparent); }
+  .ticker-animate { animation:tickerMove 50s linear infinite; display:flex; gap:24px; white-space:nowrap; }
+  @keyframes tickerMove { 0%{transform:translateX(0);} 100%{transform:translateX(-50%);} }
+  .tick { display:flex; align-items:center; gap:6px; }
+  .tick-name { color:var(--text2); font-size:10px; }
+  .tick-val { color:var(--text); font-weight:600; }
+  .tick-chg { font-size:10px; }
+  .up { color:var(--green); } .dn { color:var(--red); }
+  .layout { display:flex; height:calc(100vh - 36px); }
+  .sidebar { width:185px; min-width:185px; background:var(--bg2); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; }
+  .sidebar-section { padding:8px 0; border-bottom:1px solid var(--border); }
+  .sidebar-item { display:flex; align-items:center; gap:8px; padding:8px 14px; cursor:pointer; transition:background 0.15s; color:var(--text2); font-size:11px; }
+  .sidebar-item:hover { background:var(--bg3); color:var(--text); }
+  .sidebar-item.active { background:var(--bg4); color:var(--gold); border-left:2px solid var(--gold); padding-left:12px; }
+  .sidebar-icon { font-size:13px; width:16px; text-align:center; }
+  .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .content { flex:1; overflow-y:auto; padding:12px; }
+  .panel { display:none; } .panel.active { display:block; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px; }
+  .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:10px; }
+  .card { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:12px; }
+  .card-title { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .metric-card { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:10px 12px; }
+  .metric-label { font-size:10px; color:var(--text3); margin-bottom:4px; }
+  .metric-val { font-size:20px; font-weight:700; }
+  .metric-chg { font-size:10px; margin-top:2px; }
+  .news-item { padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer; }
+  .news-item:last-child { border-bottom:none; }
+  .news-tag { display:inline-block; font-size:9px; padding:2px 6px; border-radius:3px; margin-bottom:4px; font-weight:600; letter-spacing:0.5px; }
+  .tag-geo { background:rgba(155,122,255,0.2); color:var(--purple); }
+  .tag-mkt { background:rgba(74,158,255,0.2); color:var(--blue); }
+  .tag-live { background:rgba(228,64,64,0.2); color:var(--red); }
+  .news-title { font-size:11px; color:var(--text); line-height:1.5; }
+  .news-src { font-size:10px; color:var(--text3); margin-top:3px; }
+  .risk-row { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--border); }
+  .risk-row:last-child { border-bottom:none; }
+  .risk-name { flex:1; font-size:11px; color:var(--text2); }
+  .risk-badge { font-size:9px; font-weight:700; padding:2px 7px; border-radius:10px; letter-spacing:0.5px; }
+  .risk-high { background:rgba(228,64,64,0.2); color:var(--red); }
+  .risk-med { background:rgba(240,165,0,0.2); color:var(--gold); }
+  .risk-low { background:rgba(34,199,122,0.2); color:var(--green); }
+  .ai-box { background:var(--bg4); border:1px solid var(--border2); border-radius:6px; padding:12px; margin-bottom:10px; }
+  .ai-label { font-size:9px; color:var(--gold); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+  .ai-pulse { width:6px; height:6px; border-radius:50%; background:var(--gold); animation:pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+  .ai-text { font-size:11px; color:var(--text2); line-height:1.7; }
+  .portfolio-bar { display:flex; height:8px; border-radius:4px; overflow:hidden; margin:8px 0; }
+  .bar-seg { transition:width 0.3s; }
+  .alloc-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); }
+  .alloc-row:last-child { border-bottom:none; }
+  .alloc-color { width:10px; height:10px; border-radius:2px; }
+  .alloc-name { flex:1; font-size:11px; color:var(--text2); }
+  .alloc-pct { font-size:13px; font-weight:600; color:var(--text); }
+  .btn-gold { background:linear-gradient(135deg,var(--gold),var(--gold2)); color:#000; border:none; padding:8px 16px; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer; letter-spacing:0.5px; transition:opacity 0.15s; font-family:inherit; }
+  .btn-gold:hover { opacity:0.85; }
+  .btn-outline { background:transparent; border:1px solid var(--border2); color:var(--text2); padding:6px 12px; border-radius:5px; font-size:11px; cursor:pointer; transition:all 0.15s; font-family:inherit; }
+  .btn-outline:hover { border-color:var(--gold); color:var(--gold); }
+  .input-dark { background:var(--bg4); border:1px solid var(--border2); color:var(--text); padding:7px 10px; border-radius:5px; font-size:12px; width:100%; font-family:inherit; }
+  .input-dark:focus { outline:none; border-color:var(--gold); }
+  select.input-dark option { background:var(--bg3); }
+  .stock-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.1s; }
+  .stock-row:hover { background:var(--bg4); margin:0 -12px; padding:8px 12px; }
+  .stock-sym { font-size:12px; font-weight:700; color:var(--text); width:50px; }
+  .stock-name { flex:1; font-size:10px; color:var(--text3); }
+  .stock-price { font-size:12px; font-weight:600; width:70px; text-align:right; }
+  .stock-chg { font-size:10px; width:55px; text-align:right; }
+  .section-header { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:1px; margin:14px 0 8px; padding-bottom:4px; border-bottom:1px solid var(--border); }
+  .spinner { width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--gold); border-radius:50%; animation:spin 0.7s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg);} }
+  .analysis-output { background:var(--bg4); border:1px solid var(--border); border-radius:6px; padding:12px; margin-top:10px; min-height:80px; font-size:11px; color:var(--text2); line-height:1.8; }
+  .loading-overlay { display:flex; align-items:center; gap:8px; color:var(--text3); font-size:11px; }
+  .hot-dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px; animation:pulse 1.5s infinite; }
+  input[type="range"] { accent-color:var(--gold); }
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:var(--bg2); }
+  ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">GLOBALPULSE</div>
+  <div class="ticker-scroll">
+    <div class="ticker-animate" id="tickerInner"></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:12px;white-space:nowrap;">
+    <div style="width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;"></div>
+    <span style="font-size:10px;color:var(--text3);">LIVE</span>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div style="padding:10px 14px 4px;font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;">Global Monitor</div>
+    <div class="sidebar-section">
+      <div class="sidebar-item active" onclick="switchPanel('geo',this)"><span class="sidebar-icon">🌐</span><span>Geopolitical</span></div>
+      <div class="sidebar-item" onclick="switchPanel('market',this)"><span class="sidebar-icon">📈</span><span>Markets</span></div>
+    </div>
+    <div style="padding:8px 14px 4px;font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;">Investment Center</div>
+    <div class="sidebar-section">
+      <div class="sidebar-item" onclick="switchPanel('macro',this)"><span class="sidebar-icon">🔭</span><span>Macro Analysis</span></div>
+      <div class="sidebar-item" onclick="switchPanel('sector',this)"><span class="sidebar-icon">🏭</span><span>Sector Analysis</span></div>
+      <div class="sidebar-item" onclick="switchPanel('stock',this)"><span class="sidebar-icon">🔍</span><span>Stock Screener</span></div>
+      <div class="sidebar-item" onclick="switchPanel('portfolio',this)"><span class="sidebar-icon">💼</span><span>Portfolio Builder</span></div>
+    </div>
+    <div style="padding:8px 14px 4px;font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;">Reports</div>
+    <div class="sidebar-section">
+      <div class="sidebar-item" onclick="switchPanel('report',this)"><span class="sidebar-icon">📄</span><span>Report Center</span></div>
+    </div>
+    <div style="padding:8px 14px 4px;font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;">Settings</div>
+    <div class="sidebar-section">
+      <div class="sidebar-item" onclick="switchPanel('settings',this)"><span class="sidebar-icon">⚙️</span><span>API Settings</span></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="content">
+
+      <!-- GEO PANEL -->
+      <div class="panel active" id="panel-geo">
+        <div class="grid2" style="grid-template-columns:1.5fr 1fr;">
+          <div class="card" style="padding:0;overflow:hidden;">
+            <div style="padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);">
+              <div class="card-title" style="margin:0;">Global Risk Monitor</div>
+              <span style="font-size:9px;color:var(--text3);">Real-time</span>
+            </div>
+            <div style="padding:12px;" id="riskList"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Composite Threat Level</div>
+            <div style="text-align:center;padding:10px 0;">
+              <div style="font-size:52px;font-weight:800;color:var(--gold);line-height:1;">33</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:4px;">VIX: 25.2 · Medium Risk</div>
+              <div style="margin:14px 0 8px;height:6px;background:linear-gradient(to right,var(--green),var(--gold),var(--red));border-radius:3px;position:relative;">
+                <div style="position:absolute;left:33%;top:-4px;width:14px;height:14px;border-radius:50%;background:var(--gold);border:2px solid var(--bg);transform:translateX(-50%);"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);">
+                <span>LOW</span><span>MEDIUM</span><span>HIGH</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="card" style="padding:0;overflow:hidden;">
+            <div style="padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;">
+              <span class="hot-dot" style="background:var(--red);"></span>
+              <div class="card-title" style="margin:0;">Live News Feed</div>
+            </div>
+            <div style="padding:12px;" id="newsFeed"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Global GDP Budget (Quarterly $B)</div>
+            <div id="gdpList"></div>
+          </div>
+        </div>
+        <div class="ai-box">
+          <div class="ai-label"><div class="ai-pulse"></div>AI Geopolitical Summary</div>
+          <div class="ai-text" id="geoAiText">Click "Refresh AI Summary" for a live geopolitical risk analysis powered by Claude AI.</div>
+          <div style="margin-top:10px;"><button class="btn-gold" onclick="refreshGeoSummary()">Refresh AI Summary ↗</button></div>
+        </div>
+      </div>
+
+      <!-- MARKETS PANEL -->
+      <div class="panel" id="panel-market">
+        <div class="grid4">
+          <div class="metric-card"><div class="metric-label">S&amp;P 500</div><div class="metric-val up">5,654</div><div class="metric-chg up">+0.41% today</div></div>
+          <div class="metric-card"><div class="metric-label">NASDAQ</div><div class="metric-val up">17,890</div><div class="metric-chg up">+0.63% today</div></div>
+          <div class="metric-card"><div class="metric-label">BTC/USD</div><div class="metric-val up">66,720</div><div class="metric-chg up">+2.10% today</div></div>
+          <div class="metric-card"><div class="metric-label">Gold oz.</div><div class="metric-val up">$2,427</div><div class="metric-chg up">+0.80% today</div></div>
+        </div>
+        <div class="grid2">
+          <div class="metric-card"><div class="metric-label">VIX (Fear Index)</div><div class="metric-val" style="color:var(--gold);">22.1</div><div class="metric-chg dn">-3.2% · Elevated</div></div>
+          <div class="metric-card"><div class="metric-label">10Y Treasury Yield</div><div class="metric-val" style="color:var(--blue);">4.31%</div><div class="metric-chg dn">+2bp · Curve Inverted</div></div>
+        </div>
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-title">S&amp;P 500 — 30 Day Performance</div>
+          <div style="position:relative;width:100%;height:140px;"><canvas id="mktChart"></canvas></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title">Sector Performance (1W %)</div>
+            <div style="position:relative;width:100%;height:160px;"><canvas id="sectorChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Fear &amp; Greed Indicators</div>
+            <div id="fgiList"></div>
+          </div>
+        </div>
+        <div class="ai-box" style="margin-top:10px;">
+          <div class="ai-label"><div class="ai-pulse"></div>AI Market Intelligence</div>
+          <div class="ai-text" id="mktAiText">Click to generate live market intelligence from Claude AI.</div>
+          <div style="margin-top:10px;"><button class="btn-gold" onclick="refreshMarketSummary()">Generate Market AI ↗</button></div>
+        </div>
+      </div>
+
+      <!-- MACRO PANEL -->
+      <div class="panel" id="panel-macro">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:13px;font-weight:600;">Macro Analysis</div>
+          <button class="btn-gold" onclick="runMacroAnalysis()">Run AI Analysis ↗</button>
+        </div>
+        <div class="grid3">
+          <div class="metric-card"><div class="metric-label">US CPI YoY</div><div class="metric-val" style="color:var(--gold);">3.4%</div><div class="metric-chg dn">Above 2% target</div></div>
+          <div class="metric-card"><div class="metric-label">Fed Funds Rate</div><div class="metric-val">5.25%</div><div class="metric-chg" style="color:var(--text3);">Stable — hold</div></div>
+          <div class="metric-card"><div class="metric-label">US GDP Growth</div><div class="metric-val up">2.8%</div><div class="metric-chg up">Above consensus</div></div>
+          <div class="metric-card"><div class="metric-label">Unemployment</div><div class="metric-val up">3.9%</div><div class="metric-chg up">Near historic low</div></div>
+          <div class="metric-card"><div class="metric-label">M2 Money Supply</div><div class="metric-val dn">-2.1%</div><div class="metric-chg dn">YoY contraction</div></div>
+          <div class="metric-card"><div class="metric-label">ISM Manufacturing</div><div class="metric-val" style="color:var(--gold);">49.2</div><div class="metric-chg dn">Below 50 = contraction</div></div>
+        </div>
+        <div class="grid2" style="margin-top:10px;">
+          <div class="card">
+            <div class="card-title">Global CPI Comparison (%)</div>
+            <div style="position:relative;width:100%;height:160px;"><canvas id="macroChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">US Treasury Yield Curve</div>
+            <div style="position:relative;width:100%;height:160px;"><canvas id="yieldChart"></canvas></div>
+          </div>
+        </div>
+        <div class="section-header">AI Macro Assessment</div>
+        <div class="analysis-output" id="macroOutput">Click "Run AI Analysis" to generate a comprehensive macro outlook powered by Claude AI.</div>
+      </div>
+
+      <!-- SECTOR PANEL -->
+      <div class="panel" id="panel-sector">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:13px;font-weight:600;">Sector Analysis</div>
+          <div style="display:flex;gap:8px;">
+            <select class="input-dark" id="sectorSelect" style="width:180px;">
+              <option value="Technology">Technology (XLK)</option>
+              <option value="Energy">Energy (XLE)</option>
+              <option value="Healthcare">Healthcare (XLV)</option>
+              <option value="Financials">Financials (XLF)</option>
+              <option value="Consumer Discretionary">Consumer Disc. (XLY)</option>
+              <option value="Utilities">Utilities (XLU)</option>
+              <option value="Real Estate">Real Estate (XLRE)</option>
+              <option value="Materials">Materials (XLB)</option>
+            </select>
+            <button class="btn-gold" onclick="analyzeSector()">Analyze ↗</button>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title">Sector Rotation Map (Beta vs Return)</div>
+            <div style="position:relative;width:100%;height:200px;"><canvas id="rotationChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Top Sector Holdings</div>
+            <div id="topHoldings"></div>
+          </div>
+        </div>
+        <div class="section-header">AI Sector Deep Dive</div>
+        <div class="analysis-output" id="sectorOutput">Select a sector and click Analyze to get AI-powered sector intelligence.</div>
+      </div>
+
+      <!-- STOCK SCREENER -->
+      <div class="panel" id="panel-stock">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <input class="input-dark" id="stockSearch" placeholder="Enter ticker (e.g. AAPL, NVDA, TSLA)..." style="flex:1;" onkeydown="if(event.key==='Enter')screenStocks()">
+          <select class="input-dark" id="sectorFilter" style="width:140px;">
+            <option value="">All Sectors</option>
+            <option value="Technology">Technology</option>
+            <option value="Energy">Energy</option>
+            <option value="Healthcare">Healthcare</option>
+            <option value="Financials">Financials</option>
+            <option value="Consumer">Consumer</option>
+          </select>
+          <button class="btn-gold" onclick="screenStocks()">Screen ↗</button>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">
+          <div style="display:grid;grid-template-columns:50px 1fr 70px 55px 80px;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;">
+            <span>SYM</span><span>Company</span><span style="text-align:right;">Price</span><span style="text-align:right;">1D %</span><span style="text-align:right;">Signal</span>
+          </div>
+          <div id="stockList" style="padding:0 12px;"></div>
+        </div>
+        <div class="section-header">AI Stock Analysis</div>
+        <div class="analysis-output" id="stockOutput">Click any ticker above for AI-powered fundamental and technical analysis, or type a ticker and click Screen.</div>
+      </div>
+
+      <!-- PORTFOLIO PANEL -->
+      <div class="panel" id="panel-portfolio">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:13px;font-weight:600;">Portfolio Builder</div>
+          <button class="btn-gold" onclick="buildPortfolio()">Build Optimal Portfolio ↗</button>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title">Asset Allocation</div>
+            <div class="portfolio-bar">
+              <div class="bar-seg" style="width:20%;background:#378add;"></div>
+              <div class="bar-seg" style="width:35%;background:#1d9e75;"></div>
+              <div class="bar-seg" style="width:15%;background:#f0a500;"></div>
+              <div class="bar-seg" style="width:15%;background:#9b7aff;"></div>
+              <div class="bar-seg" style="width:10%;background:#e84040;"></div>
+              <div class="bar-seg" style="width:5%;background:#555;"></div>
+            </div>
+            <div id="allocList"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Risk Parameters</div>
+            <div style="margin-bottom:12px;">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px;"><span>Risk Tolerance</span><span id="riskVal" style="color:var(--gold);">Medium</span></div>
+              <input type="range" min="1" max="5" value="3" style="width:100%;" oninput="updateRisk(this.value)">
+            </div>
+            <div style="margin-bottom:12px;">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px;"><span>Investment Horizon</span><span id="horizVal" style="color:var(--gold);">5 Years</span></div>
+              <input type="range" min="1" max="20" value="5" step="1" style="width:100%;" oninput="updateHorizon(this.value)">
+            </div>
+            <div style="margin-bottom:12px;">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:4px;"><span>Investment Amount ($)</span><span id="amtVal" style="color:var(--gold);">$100,000</span></div>
+              <input type="range" min="10000" max="1000000" value="100000" step="10000" style="width:100%;" oninput="updateAmt(this.value)">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div class="metric-card"><div class="metric-label">Expected Return</div><div class="metric-val up" id="expReturn">7.7%</div></div>
+              <div class="metric-card"><div class="metric-label">Max Drawdown</div><div class="metric-val dn" id="maxDD">-18%</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:10px;">
+          <div class="card-title">Efficient Frontier — Risk vs Return Optimization</div>
+          <div style="position:relative;width:100%;height:160px;"><canvas id="frontierChart"></canvas></div>
+        </div>
+        <div class="section-header">AI Portfolio Intelligence</div>
+        <div class="analysis-output" id="portfolioOutput">Click "Build Optimal Portfolio" to generate an AI-optimized allocation strategy with specific ETF recommendations.</div>
+      </div>
+
+      <!-- REPORT CENTER -->
+      <div class="panel" id="panel-report">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Report Center</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:14px;">Generate comprehensive AI-powered intelligence reports on demand</div>
+        <div class="grid3">
+          <div class="card"><div style="font-size:22px;margin-bottom:8px;">🌐</div><div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;">Geopolitical Report</div><div style="font-size:10px;color:var(--text3);line-height:1.6;">Risk assessment, conflict zones, trade route disruption, sanctions &amp; market impact</div><div style="margin-top:12px;"><button class="btn-outline" onclick="generateReport('geo')">Generate Report ↗</button></div></div>
+          <div class="card"><div style="font-size:22px;margin-bottom:8px;">📈</div><div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;">Market Report</div><div style="font-size:10px;color:var(--text3);line-height:1.6;">Equity, bonds, commodities, crypto weekly digest with key drivers and outlook</div><div style="margin-top:12px;"><button class="btn-outline" onclick="generateReport('market')">Generate Report ↗</button></div></div>
+          <div class="card"><div style="font-size:22px;margin-bottom:8px;">💼</div><div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;">Portfolio Report</div><div style="font-size:10px;color:var(--text3);line-height:1.6;">Holdings analysis, performance attribution, rebalancing recommendations &amp; alerts</div><div style="margin-top:12px;"><button class="btn-outline" onclick="generateReport('portfolio')">Generate Report ↗</button></div></div>
+          <div class="card"><div style="font-size:22px;margin-bottom:8px;">🔭</div><div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;">Macro Report</div><div style="font-size:10px;color:var(--text3);line-height:1.6;">Central bank policy, inflation trends, yield curves, recession probability analysis</div><div style="margin-top:12px;"><button class="btn-outline" onclick="generateReport('macro')">Generate Report ↗</button></div></div>
+          <div class="card"><div style="font-size:22px;margin-bottom:8px;">🏭</div><div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;">Sector Report</div><div style="font-size:10px;color:var(--text3);line-height:1.6;">Sector rotation analysis, valuation comparison, top picks &amp; thematic opportunities</div><div style="margin-top:12px;"><button class="btn-outline" onclick="generateReport('sector')">Generate Report ↗</button></div></div>
+          <div class="card"><div style="font-size:22px;margin-bottom:8px;">⚡</div><div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;">Weekly Digest</div><div style="font-size:10px;color:var(--text3);line-height:1.6;">Executive summary: geo, markets, macro, sectors &amp; actionable trade ideas</div><div style="margin-top:12px;"><button class="btn-outline" onclick="generateReport('digest')">Generate Report ↗</button></div></div>
+        </div>
+        <div class="section-header" style="margin-top:12px;">Generated Report</div>
+        <div class="analysis-output" id="reportOutput">Select a report type above to generate a comprehensive AI-powered analysis.</div>
+      </div>
+
+      <!-- SETTINGS PANEL -->
+      <div class="panel" id="panel-settings">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">API Settings</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:14px;">Configure your Anthropic API key to enable all AI-powered analysis features</div>
+        <div class="card" style="max-width:520px;">
+          <div class="card-title">Anthropic API Key</div>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.7;">All AI analysis features require an Anthropic API key. Get yours free at <span style="color:var(--blue);">console.anthropic.com</span> — new accounts get $5 free credits.</p>
+          <input class="input-dark" type="password" id="apiKeyInput" placeholder="sk-ant-..." style="margin-bottom:10px;">
+          <div style="display:flex;gap:8px;">
+            <button class="btn-gold" onclick="saveApiKey()">Save Key ↗</button>
+            <button class="btn-outline" onclick="clearApiKey()">Clear</button>
+          </div>
+          <div id="keyStatus" style="margin-top:8px;font-size:10px;color:var(--text3);"></div>
+        </div>
+        <div class="card" style="max-width:520px;margin-top:10px;">
+          <div class="card-title">How It Works</div>
+          <div style="font-size:11px;color:var(--text2);line-height:2;">
+            • Your API key is stored locally in your browser (localStorage) — never sent anywhere else<br>
+            • All AI calls go directly from your browser to Anthropic's API<br>
+            • Each AI analysis uses ~500–1,000 tokens (approx. $0.003–0.006 per call)<br>
+            • Market data shown is illustrative — connect a financial data API for live prices<br>
+            • Open source: customise and host this file on any static web host (Netlify, Vercel, GitHub Pages)
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const GOLD='#f0a500',GREEN='#22c77a',RED='#e84040',BLUE='#4a9eff',PURPLE='#9b7aff',TEXT='#8a8a95',BORDER='rgba(255,255,255,0.07)';
+const CD={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:BORDER},ticks:{color:TEXT,font:{size:9}}},y:{grid:{color:BORDER},ticks:{color:TEXT,font:{size:9}}}}};
+
+const TICKERS=[
+  {n:'SPY',v:'564.30',c:'+0.41%',up:true},{n:'QQQ',v:'448.50',c:'+0.63%',up:true},
+  {n:'DOW',v:'38,421',c:'+0.28%',up:true},{n:'BTC',v:'66,720',c:'+2.10%',up:true},
+  {n:'ETH',v:'3,450',c:'+1.30%',up:true},{n:'GOLD',v:'2,427',c:'+0.80%',up:true},
+  {n:'OIL',v:'79.40',c:'-1.20%',up:false},{n:'EUR/USD',v:'1.085',c:'-0.15%',up:false},
+  {n:'USD/JPY',v:'151.20',c:'+0.30%',up:true},{n:'GBP/USD',v:'1.268',c:'-0.08%',up:false},
+  {n:'VIX',v:'22.10',c:'-3.20%',up:false},{n:'10Y UST',v:'4.31%',c:'+2bp',up:false},
+  {n:'AAPL',v:'178.90',c:'+0.90%',up:true},{n:'NVDA',v:'875.40',c:'+2.40%',up:true},
+  {n:'MSFT',v:'415.20',c:'+0.60%',up:true},{n:'TSLA',v:'162.10',c:'-1.80%',up:false},
+  {n:'AMZN',v:'182.30',c:'+1.10%',up:true},{n:'META',v:'498.50',c:'+1.70%',up:true},
+];
+
+function buildTicker(){
+  const inner=document.getElementById('tickerInner');
+  inner.innerHTML=[...TICKERS,...TICKERS].map(t=>`<span class="tick"><span class="tick-name">${t.n}</span><span class="tick-val">${t.v}</span><span class="tick-chg ${t.up?'up':'dn'}">${t.c}</span></span>`).join('');
+}
+
+function buildRiskList(){
+  const risks=[
+    {n:'Iran-Israel Conflict',l:'HIGH'},{n:'China-Taiwan Strait',l:'HIGH'},
+    {n:'Russia-Ukraine War',l:'HIGH'},{n:'Middle East Stability',l:'HIGH'},
+    {n:'US Election Risk',l:'MEDIUM'},{n:'EU Energy Crisis',l:'MEDIUM'},
+    {n:'NK Nuclear Activity',l:'MEDIUM'},{n:'South China Sea',l:'MEDIUM'},
+    {n:'Global Trade Wars',l:'LOW'},{n:'Latin America Stability',l:'LOW'},
+  ];
+  document.getElementById('riskList').innerHTML=risks.map(r=>`<div class="risk-row"><div class="risk-name">${r.n}</div><span class="risk-badge ${r.l==='HIGH'?'risk-high':r.l==='MEDIUM'?'risk-med':'risk-low'}">${r.l}</span></div>`).join('');
+}
+
+function buildNewsFeed(){
+  const news=[
+    {tag:'GEO',cls:'tag-geo',title:'Trump threatens Iran military action at Congress address — oil markets react',src:'FORTUNE · 22h'},
+    {tag:'LIVE',cls:'tag-live',title:'Oil analysts: April may see highest price forecast of year, supply risks elevated',src:'NEWSBREAK · 22h'},
+    {tag:'GEO',cls:'tag-geo',title:'Trump signals US may walk back Ukraine ceasefire support amid talks',src:'NY DAILY NEWS · 22h'},
+    {tag:'MKT',cls:'tag-mkt',title:'Fed minutes signal cautious approach — rate cuts pushed to Q4 2024',src:'REUTERS · 3h'},
+    {tag:'LIVE',cls:'tag-live',title:'Israel constitutional court rules on expanded security legislation',src:'HAARETZ · 1h'},
+    {tag:'MKT',cls:'tag-mkt',title:'NVIDIA beats earnings by 18% — AI infrastructure demand accelerates globally',src:'BLOOMBERG · 5h'},
+  ];
+  document.getElementById('newsFeed').innerHTML=news.map(n=>`<div class="news-item"><div><span class="news-tag ${n.cls}">${n.tag}</span></div><div class="news-title">${n.title}</div><div class="news-src">${n.src}</div></div>`).join('');
+}
+
+function buildGDP(){
+  const items=[
+    {f:'🇺🇸',n:'USA',v:'$888B'},{f:'🇨🇳',n:'China',v:'$296B'},
+    {f:'🇮🇳',n:'India',v:'$83B'},{f:'🇸🇦',n:'Saudi Arabia',v:'$75B'},
+    {f:'🇬🇧',n:'UK',v:'$73B'},{f:'🇩🇪',n:'Germany',v:'$68B'},
+    {f:'🇯🇵',n:'Japan',v:'$60B'},{f:'🇰🇷',n:'South Korea',v:'$48B'},
+  ];
+  document.getElementById('gdpList').innerHTML=items.map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="font-size:14px;">${i.f}</span><span style="flex:1;font-size:11px;color:var(--text2);">${i.n}</span><span style="font-size:12px;font-weight:600;color:var(--text);">${i.v}</span></div>`).join('');
+}
+
+function buildFGI(){
+  const items=[
+    {n:'Market Momentum',v:62,c:GREEN},{n:'Stock Price Strength',v:55,c:GOLD},
+    {n:'Safe Haven Demand',v:38,c:GOLD},{n:'Market Volatility (VIX)',v:42,c:GOLD},
+    {n:'Put/Call Ratio',v:29,c:GREEN},{n:'Junk Bond Demand',v:67,c:GREEN},
+  ];
+  document.getElementById('fgiList').innerHTML=items.map(i=>`<div style="padding:5px 0;border-bottom:1px solid var(--border);"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;"><span style="color:var(--text2);">${i.n}</span><span style="font-weight:600;color:${i.c};">${i.v}/100</span></div><div style="height:3px;background:var(--bg4);border-radius:2px;"><div style="width:${i.v}%;height:100%;background:${i.c};border-radius:2px;"></div></div></div>`).join('');
+}
+
+function buildAllocList(){
+  const a=[{name:'US Equities',pct:20,color:'#378add'},{name:'Bonds (TLT/IEF)',pct:35,color:'#1d9e75'},{name:'International',pct:10,color:'#f0a500'},{name:'Commodities',pct:15,color:'#9b7aff'},{name:'Alternatives/Hedge',pct:15,color:'#e84040'},{name:'Cash',pct:5,color:'#555'}];
+  document.getElementById('allocList').innerHTML=a.map(x=>`<div class="alloc-row"><div class="alloc-color" style="background:${x.color};"></div><div class="alloc-name">${x.name}</div><div class="alloc-pct">${x.pct}%</div></div>`).join('');
+}
+
+function buildStockList(){
+  const stocks=[
+    {sym:'AAPL',name:'Apple Inc.',price:'$178.90',chg:'+0.9%',up:true,sig:'BUY'},
+    {sym:'NVDA',name:'NVIDIA Corp.',price:'$875.40',chg:'+2.4%',up:true,sig:'BUY'},
+    {sym:'MSFT',name:'Microsoft Corp.',price:'$415.20',chg:'+0.6%',up:true,sig:'HOLD'},
+    {sym:'TSLA',name:'Tesla Inc.',price:'$162.10',chg:'-1.8%',up:false,sig:'SELL'},
+    {sym:'AMZN',name:'Amazon.com Inc.',price:'$182.30',chg:'+1.1%',up:true,sig:'BUY'},
+    {sym:'GOOGL',name:'Alphabet Inc.',price:'$167.80',chg:'+0.4%',up:true,sig:'HOLD'},
+    {sym:'META',name:'Meta Platforms',price:'$498.50',chg:'+1.7%',up:true,sig:'BUY'},
+    {sym:'JPM',name:'JPMorgan Chase',price:'$198.40',chg:'-0.3%',up:false,sig:'HOLD'},
+    {sym:'BRK.B',name:'Berkshire Hathaway',price:'$378.20',chg:'+0.2%',up:true,sig:'HOLD'},
+    {sym:'XOM',name:'Exxon Mobil',price:'$112.40',chg:'-0.8%',up:false,sig:'HOLD'},
+  ];
+  document.getElementById('stockList').innerHTML=stocks.map(s=>`<div class="stock-row" onclick="analyzeStock('${s.sym}')"><div class="stock-sym">${s.sym}</div><div class="stock-name">${s.name}</div><div class="stock-price">${s.price}</div><div class="stock-chg ${s.up?'up':'dn'}">${s.chg}</div><div style="text-align:right;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;${s.sig==='BUY'?'background:rgba(34,199,122,0.15);color:'+GREEN+';':s.sig==='SELL'?'background:rgba(232,64,64,0.15);color:'+RED+';':'background:rgba(240,165,0,0.15);color:'+GOLD+';'}">${s.sig}</div></div>`).join('');
+}
+
+function buildTopHoldings(){
+  const h=[{s:'NVDA',w:'28%',r:'+82%',wn:28},{s:'AAPL',w:'22%',r:'+24%',wn:22},{s:'MSFT',w:'18%',r:'+31%',wn:18},{s:'AVGO',w:'12%',r:'+67%',wn:12},{s:'AMD',w:'10%',r:'+44%',wn:10}];
+  document.getElementById('topHoldings').innerHTML=h.map(x=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:11px;align-items:center;"><span style="font-weight:700;color:var(--text);width:45px;">${x.s}</span><div style="flex:1;background:var(--bg4);border-radius:3px;height:14px;overflow:hidden;"><div style="width:${x.wn*3}%;height:100%;background:${BLUE};opacity:0.5;"></div></div><span style="color:var(--text2);width:30px;text-align:right;">${x.w}</span><span class="up" style="width:42px;text-align:right;">${x.r}</span></div>`).join('');
+}
+
+let chartsBuilt={};
+function buildCharts(panel){
+  if(chartsBuilt[panel]) return;
+  chartsBuilt[panel]=true;
+  if(panel==='market'){
+    const days=[];
+    for(let i=30;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);days.push(d.toLocaleDateString('en',{month:'short',day:'numeric'}));}
+    const spx=[510,508,515,512,520,518,525,522,530,528,535,532,540,538,545,542,548,545,552,550,558,555,560,558,565,562,568,565,570,568,565];
+    new Chart(document.getElementById('mktChart'),{type:'line',data:{labels:days,datasets:[{data:spx,borderColor:GOLD,borderWidth:1.5,pointRadius:0,fill:true,backgroundColor:'rgba(240,165,0,0.05)'}]},options:{...CD,scales:{x:{...CD.scales.x,ticks:{...CD.scales.x.ticks,maxTicksLimit:7}},y:{...CD.scales.y}}}});
+    const svals=[4.2,1.8,2.1,-0.8,1.2,-0.4,-1.1,0.9];
+    new Chart(document.getElementById('sectorChart'),{type:'bar',data:{labels:['Tech','Health','Finance','Energy','Cons.','Util.','RE','Mater.'],datasets:[{data:svals,backgroundColor:svals.map(v=>v>0?'rgba(34,199,122,0.7)':'rgba(232,64,64,0.7)'),borderWidth:0,borderRadius:2}]},options:{...CD,scales:{x:{...CD.scales.x},y:{...CD.scales.y,ticks:{...CD.scales.y.ticks,callback:v=>v+'%'}}}}});
+  }
+  if(panel==='macro'){
+    const cpi=[3.4,2.8,4.1,2.2,0.7,4.9,5.1,3.6];
+    new Chart(document.getElementById('macroChart'),{type:'bar',data:{labels:['US','EU','UK','JP','CN','BR','IN','AU'],datasets:[{data:cpi,backgroundColor:cpi.map(v=>v>4?'rgba(232,64,64,0.7)':v>3?'rgba(240,165,0,0.7)':'rgba(34,199,122,0.7)'),borderWidth:0,borderRadius:2}]},options:{...CD,scales:{x:{...CD.scales.x},y:{...CD.scales.y,ticks:{...CD.scales.y.ticks,callback:v=>v+'%'}}}}});
+    new Chart(document.getElementById('yieldChart'),{type:'line',data:{labels:['1M','3M','6M','1Y','2Y','5Y','10Y','30Y'],datasets:[{data:[5.3,5.35,5.4,5.2,4.95,4.55,4.31,4.48],borderColor:BLUE,borderWidth:2,pointRadius:4,pointBackgroundColor:BLUE,fill:false,tension:0.3}]},options:{...CD,scales:{x:{...CD.scales.x},y:{...CD.scales.y,min:4.0,ticks:{...CD.scales.y.ticks,callback:v=>v.toFixed(2)+'%'}}}}});
+  }
+  if(panel==='sector'){
+    const scatter=[{x:0.8,y:12},{x:1.2,y:18},{x:0.6,y:8},{x:1.5,y:22},{x:0.9,y:10},{x:1.8,y:28},{x:0.4,y:5},{x:1.1,y:15}];
+    const labels=['Finance','Tech','Util.','Energy','Health','Growth','Bonds','Ind.'];
+    const colors=[BLUE,GOLD,GREEN,RED,PURPLE,'rgba(240,165,0,0.6)','rgba(74,158,255,0.6)','rgba(155,122,255,0.6)'];
+    new Chart(document.getElementById('rotationChart'),{type:'scatter',data:{datasets:labels.map((l,i)=>({label:l,data:[scatter[i]],backgroundColor:colors[i],pointRadius:9}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:TEXT,font:{size:9},boxWidth:8,padding:6}}},scales:{x:{title:{display:true,text:'Beta',color:TEXT,font:{size:9}},grid:{color:BORDER},ticks:{color:TEXT,font:{size:9}}},y:{title:{display:true,text:'Return %',color:TEXT,font:{size:9}},grid:{color:BORDER},ticks:{color:TEXT,font:{size:9},callback:v=>v+'%'}}}}});
+  }
+  if(panel==='portfolio'){
+    const rr=Array.from({length:60},()=>Math.random()*14+2);
+    const ret=rr.map(r=>r*0.55+Math.random()*4+2);
+    new Chart(document.getElementById('frontierChart'),{type:'scatter',data:{datasets:[{label:'Portfolios',data:rr.map((r,i)=>({x:r,y:ret[i]})),backgroundColor:'rgba(240,165,0,0.12)',pointRadius:3},{label:'Efficient Frontier',data:[{x:3.5,y:5.2},{x:4.5,y:6.3},{x:5.5,y:7.4},{x:6.5,y:8.2},{x:7.5,y:9.0},{x:9,y:10.2},{x:11,y:11.5},{x:13,y:12.8}],backgroundColor:GOLD,pointRadius:5,showLine:true,borderColor:GOLD,borderWidth:1.5,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{title:{display:true,text:'Risk (Volatility %)',color:TEXT,font:{size:9}},grid:{color:BORDER},ticks:{color:TEXT,font:{size:9},callback:v=>v+'%'}},y:{title:{display:true,text:'Expected Return %',color:TEXT,font:{size:9}},grid:{color:BORDER},ticks:{color:TEXT,font:{size:9},callback:v=>v+'%'}}}}});
+  }
+}
+
+function switchPanel(id,el){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sidebar-item').forEach(i=>i.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  el.classList.add('active');
+  setTimeout(()=>buildCharts(id),60);
+}
+
+function updateRisk(v){
+  const labels={1:'Very Low',2:'Low',3:'Medium',4:'High',5:'Very High'};
+  const returns={1:'4.2%',2:'5.8%',3:'7.7%',4:'10.2%',5:'14.1%'};
+  const dds={1:'-6%',2:'-12%',3:'-18%',4:'-28%',5:'-42%'};
+  document.getElementById('riskVal').textContent=labels[v];
+  document.getElementById('expReturn').textContent=returns[v];
+  document.getElementById('maxDD').textContent=dds[v];
+}
+function updateHorizon(v){document.getElementById('horizVal').textContent=v+' Year'+(v>1?'s':'');}
+function updateAmt(v){document.getElementById('amtVal').textContent='$'+Number(v).toLocaleString();}
+
+function getApiKey(){return localStorage.getItem('gp_api_key')||'';}
+function saveApiKey(){
+  const k=document.getElementById('apiKeyInput').value.trim();
+  if(k){localStorage.setItem('gp_api_key',k);document.getElementById('keyStatus').innerHTML='<span style="color:var(--green);">Key saved successfully</span>';}
+  else{document.getElementById('keyStatus').innerHTML='<span style="color:var(--red);">Please enter a valid key</span>';}
+}
+function clearApiKey(){
+  localStorage.removeItem('gp_api_key');
+  document.getElementById('apiKeyInput').value='';
+  document.getElementById('keyStatus').innerHTML='<span style="color:var(--text3);">Key cleared</span>';
+}
+
+async function callClaude(prompt,outputId,loadingMsg){
+  const el=document.getElementById(outputId);
+  el.innerHTML=`<div class="loading-overlay"><div class="spinner"></div>${loadingMsg}</div>`;
+  const key=getApiKey();
+  if(!key){el.innerHTML='<span style="color:var(--gold);">No API key set. Go to Settings to add your Anthropic API key (console.anthropic.com).</span>';return;}
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:'You are GlobalPulse, an elite AI financial intelligence system used by professional investors. Provide concise, data-driven, actionable analysis. Use specific numbers and clear recommendations. Use **Header:** pattern for sections. Be direct and professional.',messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    if(data.error){el.innerHTML=`<span style="color:var(--red);">API Error: ${data.error.message}</span>`;return;}
+    const text=data.content?.map(c=>c.text||'').join('')||'Analysis unavailable.';
+    el.innerHTML=text.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<span style="color:var(--gold);font-weight:600;">$1</span>');
+  }catch(e){el.innerHTML=`<span style="color:var(--red);">Connection error. Check your API key in Settings.</span>`;}
+}
+
+function refreshGeoSummary(){callClaude('Provide a concise geopolitical risk summary for investors today: top 3 active conflict zones with risk scores 1-10, key trade route disruptions, commodity supply risks, and 2-3 specific investment implications. Under 200 words.','geoAiText','Analyzing geopolitical landscape...');}
+function refreshMarketSummary(){callClaude('Provide a current market intelligence briefing: current equity market regime, key technical levels for S&P 500, sector rotation trends, bond market dynamics, and 3 specific tactical recommendations with rationale.','mktAiText','Generating market intelligence...');}
+function runMacroAnalysis(){callClaude('Provide comprehensive macro analysis: (1) US inflation trajectory and Fed rate cut timeline, (2) global central bank divergence, (3) yield curve dynamics and recession probability, (4) USD outlook, (5) top 2 macro risks and investment implications. Be specific with data.','macroOutput','Running AI macro analysis...');}
+function analyzeSector(){
+  const sector=document.getElementById('sectorSelect').value;
+  callClaude(`Analyze the ${sector} sector: (1) current fundamental thesis and valuation vs 5Y history, (2) key performance drivers this quarter, (3) top 3 specific stock picks with rationale and price targets, (4) key risks, (5) tactical positioning recommendation with time horizon.`,'sectorOutput','Analyzing sector...');
+}
+function analyzeStock(sym){callClaude(`Investment analysis for ${sym}: (1) fundamental thesis (revenue growth, margins, valuation vs peers), (2) recent earnings and guidance, (3) technical setup (support/resistance levels), (4) analyst consensus and price target range, (5) upcoming catalysts, (6) BUY/HOLD/SELL rating with 12-month price target and reasoning.`,'stockOutput',`Analyzing ${sym}...`);}
+function screenStocks(){
+  const q=document.getElementById('stockSearch').value.trim();
+  if(q) analyzeStock(q.toUpperCase());
+  else{
+    const sector=document.getElementById('sectorFilter').value;
+    if(sector) callClaude(`Screen for the best 5 stocks in the ${sector} sector right now. For each: ticker, one-sentence thesis, key catalyst, and risk/reward rating 1-5.`,'stockOutput',`Screening ${sector} stocks...`);
+  }
+}
+function buildPortfolio(){
+  const riskEl=document.querySelectorAll('input[type="range"]')[0];
+  const horizEl=document.querySelectorAll('input[type="range"]')[1];
+  const labels={1:'very conservative',2:'conservative',3:'moderate',4:'aggressive',5:'very aggressive'};
+  callClaude(`Design an optimal investment portfolio for a ${labels[riskEl.value]||'moderate'}-risk investor with a ${horizEl.value}-year horizon. Include: (1) specific asset allocation percentages, (2) specific ETF tickers for each bucket, (3) expected annual return and max drawdown, (4) Sharpe ratio estimate, (5) rebalancing frequency, (6) current market adjustments given elevated VIX and interest rates.`,'portfolioOutput','Optimizing portfolio...');
+}
+
+const REPORT_PROMPTS={
+  geo:'Write a professional weekly geopolitical risk intelligence report: executive summary, top 5 risk zones with threat scores, trade route disruptions, sanctions updates, 3 emerging risks to watch, and specific market implications by asset class.',
+  market:'Write a weekly financial markets report: equity performance and technical setup, bond market dynamics, commodity moves, crypto, 5 key economic data points, sector leaders/laggards, and next week outlook with key levels to watch.',
+  portfolio:'Write a portfolio review and rebalancing report: attribution analysis framework, current market regime implications, 5 specific rebalancing recommendations, upcoming earnings risk events, and 3 risk alerts for the next 30 days.',
+  macro:'Write a macro regime analysis: current economic cycle positioning, inflation trajectory across major economies, central bank policy matrix, yield curve analysis, recession probability indicators, USD outlook, and 5 specific macro trade ideas.',
+  sector:'Write a sector rotation report: current rotation cycle phase, valuation comparison across GICS sectors, momentum and fundamental scores, top 3 overweight ETF recommendations, top 3 underweight calls, and thematic investment opportunities.',
+  digest:'Write a comprehensive weekly investment digest: (1) Geopolitical highlights, (2) Market performance summary, (3) Macro data implications, (4) Sector winners/losers, (5) Top stock movers, (6) Crypto and commodities, (7) Next week calendar. Include 5 actionable trade ideas with entry levels.',
+};
+function generateReport(type){callClaude(REPORT_PROMPTS[type],'reportOutput','Generating comprehensive report...');}
+
+buildTicker();
+buildRiskList();
+buildNewsFeed();
+buildGDP();
+buildAllocList();
+buildStockList();
+buildTopHoldings();
+buildFGI();
+
+const saved=getApiKey();
+const keyInput=document.getElementById('apiKeyInput');
+if(saved&&keyInput) keyInput.value=saved.substring(0,12)+'...';
+</script>
+</body>
+</html>
